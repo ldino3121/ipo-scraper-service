@@ -74,6 +74,7 @@ app.get('/scrape-investorgain', async (req, res) => {
                     type = "SME";
                 }
 
+
                 // Indices based on audit:
                 // 1: GMP, 2: Rating, 3: Sub, 4: Price, 6: Lot, 7: Open, 8: Close, 9: BoA, 10: Listing
                 return {
@@ -88,7 +89,9 @@ app.get('/scrape-investorgain', async (req, res) => {
                     open_date: cells[7].innerText.trim(),
                     close_date: cells[8].innerText.trim(),
                     allotment_date: cells[9].innerText.trim(),
-                    listing_date: cells[10].innerText.trim()
+                    listing_date: cells[10].innerText.trim(),
+                    // DEBUG: Dump all cells to verify indices
+                    raw_cells: Array.from(cells).map(c => c.innerText.trim())
                 };
             }).filter(item => item !== null);
         });
