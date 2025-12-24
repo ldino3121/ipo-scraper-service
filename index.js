@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-
 // Root Endpoint for Health Check
 app.get('/', (req, res) => {
     res.json({ message: "Scraper Service is active 🚀", endpoints: ["/scrape-investorgain", "/scrape-groww"] });
@@ -49,22 +48,35 @@ app.get('/scrape-investorgain', async (req, res) => {
             const rows = Array.from(document.querySelectorAll('#reportData table tbody tr'));
             return rows.map(tr => {
                 const cells = tr.querySelectorAll('td');
-                if (cells.length < 5) return null;
+                if (cells.length < 11) return null; // Ensure we have enough columns
 
+                // 0: Name + Status + Type
                 const nameAnchor = cells[0].querySelector('a');
-                const name = nameAnchor ? nameAnchor.innerText.trim() : cells[0].innerText.trim();
+                let rawName = nameAnchor ? nameAnchor.innerText.trim() : cells[0].innerText.trim();
                 const statusSpan = cells[0].querySelector('span');
                 const status = statusSpan ? statusSpan.innerText.trim() : '';
 
-                // Text cleaning could happen here or on client side
+                // Detect Type
+                let type = "Mainboard";
+                if (rawName.includes('SME')) {
+                    type = "SME";
+                }
+
+                // Indices based on audit:
+                // 1: GMP, 2: Rating, 3: Sub, 4: Price, 6: Lot, 7: Open, 8: Close, 9: BoA, 10: Listing
                 return {
-                    ipo_name: name,
-                    status_code: status, // U, O, C
+                    ipo_name: rawName,
+                    type: type,
+                    status_code: status,
                     gmp_raw: cells[1].innerText.trim(),
                     rating: cells[2].innerText.trim(),
-                    // sub: cells[3] might be sub
+                    subscription: cells[3].innerText.trim(),
                     price_raw: cells[4].innerText.trim(),
-                    // ... extract more as needed
+                    lot_size: cells[6].innerText.trim(),
+                    open_date: cells[7].innerText.trim(),
+                    close_date: cells[8].innerText.trim(),
+                    allotment_date: cells[9].innerText.trim(),
+                    listing_date: cells[10].innerText.trim()
                 };
             }).filter(item => item !== null);
         });
@@ -89,12 +101,6 @@ app.get('/scrape-groww', async (req, res) => {
 
         await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'networkidle2', timeout: 60000 });
 
-        // Wait for rows (Groww might be React, so wait for specific content)
-        // Table selector guess based on typical structures, or specific class check.
-        // Waiting for 'Checkout' buttons or similar.
-        // User tip: "Allotment Status header name column"
-
-        // Let's grab specific links with "Check" text
         await page.waitForSelector('table', { timeout: 15000 }); // Assuming a table exists
 
         const data = await page.evaluate(() => {
