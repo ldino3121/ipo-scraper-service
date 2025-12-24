@@ -14,7 +14,7 @@ app.get('/', (req, res) => {
     res.json({ message: "Scraper Service is active 🚀", endpoints: ["/scrape-investorgain", "/scrape-groww"] });
 });
 
-// Browser Launcher Helper
+// Browser Launcher Helper (Optimized Args)
 async function getBrowser() {
     return await puppeteer.launch({
         args: [
@@ -22,7 +22,8 @@ async function getBrowser() {
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
-            '--disable-gpu'
+            '--disable-gpu',
+            '--single-process' // Sometimes helps on Render
         ],
         headless: "new"
     });
@@ -36,13 +37,24 @@ app.get('/scrape-investorgain', async (req, res) => {
         browser = await getBrowser();
         const page = await browser.newPage();
 
+        // OPTIMIZATION: Block heavy resources
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+            const type = req.resourceType();
+            if (type === 'image' || type === 'stylesheet' || type === 'font') {
+                req.abort();
+            } else {
+                req.continue();
+            }
+        });
+
         // Stealth: Set UA
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        await page.goto('https://www.investorgain.com/report/live-ipo-gmp/331/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.goto('https://www.investorgain.com/report/live-ipo-gmp/331/', { waitUntil: 'domcontentloaded', timeout: 90000 });
 
         // Wait for table
-        await page.waitForSelector('#reportData table', { timeout: 15000 });
+        await page.waitForSelector('#reportData table', { timeout: 30000 });
 
         const data = await page.evaluate(() => {
             const rows = Array.from(document.querySelectorAll('#reportData table tbody tr'));
@@ -83,7 +95,7 @@ app.get('/scrape-investorgain', async (req, res) => {
 
         res.json({ success: true, count: data.length, data });
     } catch (error) {
-        console.error(error);
+        console.error("Investorgain Error:", error);
         res.status(500).json({ success: false, error: error.message });
     } finally {
         if (browser) await browser.close();
@@ -97,11 +109,24 @@ app.get('/scrape-groww', async (req, res) => {
     try {
         browser = await getBrowser();
         const page = await browser.newPage();
+
+        // OPTIMIZATION: Block heavy resources
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+            const type = req.resourceType();
+            if (type === 'image' || type === 'stylesheet' || type === 'font' || type === 'media') {
+                req.abort();
+            } else {
+                req.continue();
+            }
+        });
+
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'networkidle2', timeout: 60000 });
+        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'domcontentloaded', timeout: 90000 });
 
-        await page.waitForSelector('table', { timeout: 15000 }); // Assuming a table exists
+        // Groww sometimes uses weird tables, wait longer
+        await page.waitForSelector('table', { timeout: 30000 });
 
         const data = await page.evaluate(() => {
             // Locate table rows
@@ -123,7 +148,7 @@ app.get('/scrape-groww', async (req, res) => {
         res.json({ success: true, count: data.length, data });
 
     } catch (error) {
-        console.error(error);
+        console.error("Groww Error:", error);
         res.status(500).json({ success: false, error: error.message });
     } finally {
         if (browser) await browser.close();
