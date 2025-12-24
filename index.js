@@ -9,6 +9,12 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+
+// Root Endpoint for Health Check
+app.get('/', (req, res) => {
+    res.json({ message: "Scraper Service is active 🚀", endpoints: ["/scrape-investorgain", "/scrape-groww"] });
+});
+
 // Browser Launcher Helper
 async function getBrowser() {
     return await puppeteer.launch({
