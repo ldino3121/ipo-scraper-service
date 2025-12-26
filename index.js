@@ -14,6 +14,7 @@ app.get('/', (req, res) => {
     res.json({ message: "Scraper Service is active 🚀", endpoints: ["/scrape-investorgain", "/scrape-groww"] });
 });
 
+
 // Browser Launcher Helper (Optimized Args)
 async function getBrowser() {
     return await puppeteer.launch({
@@ -23,7 +24,8 @@ async function getBrowser() {
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
             '--disable-gpu',
-            '--single-process' // Sometimes helps on Render
+            '--single-process',
+            '--no-zygote' // Reduces memory usage significantly
         ],
         headless: "new"
     });
@@ -37,11 +39,20 @@ app.get('/scrape-investorgain', async (req, res) => {
         browser = await getBrowser();
         const page = await browser.newPage();
 
-        // OPTIMIZATION: Block heavy resources
+        // OPTIMIZATION: Block heavy resources & Ads
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             const type = req.resourceType();
-            if (type === 'image' || type === 'stylesheet' || type === 'font') {
+            const url = req.url().toLowerCase();
+
+            // Block Resource Types
+            if (['image', 'stylesheet', 'font', 'media', 'script'].includes(type) ||
+                // Block Ad Domains
+                url.includes('googleads') ||
+                url.includes('doubleclick') ||
+                url.includes('analytics') ||
+                url.includes('facebook') ||
+                url.includes('twitter')) {
                 req.abort();
             } else {
                 req.continue();
@@ -51,7 +62,7 @@ app.get('/scrape-investorgain', async (req, res) => {
         // Stealth: Set UA
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        await page.goto('https://www.investorgain.com/report/live-ipo-gmp/331/', { waitUntil: 'domcontentloaded', timeout: 90000 });
+        await page.goto('https://www.investorgain.com/report/live-ipo-gmp/331/', { waitUntil: 'domcontentloaded', timeout: 60000 }); // Reduced timeout
 
         // Wait for table
         await page.waitForSelector('#reportData table', { timeout: 30000 });
@@ -74,10 +85,6 @@ app.get('/scrape-investorgain', async (req, res) => {
                     type = "SME";
                 }
 
-
-
-                // Indices based on audit:
-                // 1: GMP, 2: Rating, 3: Sub, 4: Price, 5: Size, 6: Lot, 7: Open, 8: Close, 9: BoA, 10: Listing
                 return {
                     ipo_name: rawName,
                     type: type,
@@ -86,14 +93,12 @@ app.get('/scrape-investorgain', async (req, res) => {
                     rating: cells[2].innerText.trim(),
                     subscription: cells[3].innerText.trim(),
                     price_raw: cells[4].innerText.trim(),
-                    issue_size: cells[5].innerText.trim(), // Captured!
+                    issue_size: cells[5].innerText.trim(),
                     lot_size: cells[6].innerText.trim(),
                     open_date: cells[7].innerText.trim(),
                     close_date: cells[8].innerText.trim(),
                     allotment_date: cells[9].innerText.trim(),
                     listing_date: cells[10].innerText.trim(),
-                    // DEBUG: Dump all cells to verify indices
-                    // raw_cells: Array.from(cells).map(c => c.innerText.trim()) // keeping debug optional
                 };
             }).filter(item => item !== null);
         });
@@ -115,11 +120,18 @@ app.get('/scrape-groww', async (req, res) => {
         browser = await getBrowser();
         const page = await browser.newPage();
 
-        // OPTIMIZATION: Block heavy resources
+        // OPTIMIZATION: Block heavy resources & Ads
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             const type = req.resourceType();
-            if (type === 'image' || type === 'stylesheet' || type === 'font' || type === 'media') {
+            const url = req.url().toLowerCase();
+
+            // Block Resource Types
+            if (['image', 'stylesheet', 'font', 'media', 'script'].includes(type) ||
+                // Block Ad Domains
+                url.includes('googleads') ||
+                url.includes('doubleclick') ||
+                url.includes('analytics')) {
                 req.abort();
             } else {
                 req.continue();
@@ -128,7 +140,7 @@ app.get('/scrape-groww', async (req, res) => {
 
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'domcontentloaded', timeout: 90000 });
+        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
         // Groww sometimes uses weird tables, wait longer
         await page.waitForSelector('table', { timeout: 30000 });
