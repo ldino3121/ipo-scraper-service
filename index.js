@@ -137,29 +137,49 @@ app.get('/scrape-groww', async (req, res) => {
             }
         });
 
+
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'domcontentloaded', timeout: 60000 });
+        // Helper to scrape current page table
+        const scrapeTable = async () => {
+            try {
+                await page.waitForSelector('table', { timeout: 15000 }); // FAST wait
+                return await page.evaluate(() => {
+                    const rows = Array.from(document.querySelectorAll('table tbody tr'));
+                    return rows.map(tr => {
+                        const cells = tr.querySelectorAll('td');
+                        if (cells.length < 2) return null;
+                        const name = cells[0].innerText.trim();
+                        const link = tr.querySelector('a');
+                        // Only return if we have a link (to save space)
+                        return link ? { ipo_name: name, registrar_link: link.href } : null;
+                    }).filter(item => item !== null);
+                });
+            } catch (e) {
+                console.log("No table found or timeout on this page.");
+                return [];
+            }
+        };
 
-        // Groww sometimes uses weird tables, wait longer
-        await page.waitForSelector('table', { timeout: 30000 });
+        let allData = [];
 
-        const data = await page.evaluate(() => {
-            // Locate table rows
-            const rows = Array.from(document.querySelectorAll('table tbody tr'));
-            return rows.map(tr => {
-                const cells = tr.querySelectorAll('td');
-                if (cells.length < 2) return null;
+        // 1. Visit Allotment Page (Active)
+        console.log("visiting allotment...");
+        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        const allotmentData = await scrapeTable();
+        allData = [...allData, ...allotmentData];
 
-                const name = cells[0].innerText.trim();
-                // Find Check button/link
-                const link = tr.querySelector('a'); // Usually the 'Check' button is an anchor
-                return {
-                    ipo_name: name,
-                    registrar_link: link ? link.href : null
-                };
-            }).filter(item => item !== null);
-        });
+        // 2. Visit Closed Page (History)
+        console.log("visiting closed...");
+        await page.goto('https://groww.in/ipo/closed', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        const closedData = await scrapeTable();
+        allData = [...allData, ...closedData];
+
+        // Deduplicate
+        const uniqueData = Array.from(new Map(allData.map(item => [item.ipo_name, item])).values());
+
+        res.json({ success: true, count: uniqueData.length, data: uniqueData });
+
 
         res.json({ success: true, count: data.length, data });
 
