@@ -140,8 +140,28 @@ app.get('/scrape-groww', async (req, res) => {
 
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
+
         // Helper to scrape current page table
         const scrapeTable = async () => {
+            // AUTO-SCROLL to load all lazy content
+            await page.evaluate(async () => {
+                await new Promise((resolve) => {
+                    let totalHeight = 0;
+                    const distance = 100;
+                    const timer = setInterval(() => {
+                        const scrollHeight = document.body.scrollHeight;
+                        window.scrollBy(0, distance);
+                        totalHeight += distance;
+
+                        // Stop scrolling if we've reached the bottom or exceeded a limit
+                        if (totalHeight >= scrollHeight || totalHeight > 15000) { // 15000px limit ~ 150 rows
+                            clearInterval(timer);
+                            resolve();
+                        }
+                    }, 100);
+                });
+            });
+
             try {
                 await page.waitForSelector('table', { timeout: 15000 }); // FAST wait
                 return await page.evaluate(() => {
@@ -165,13 +185,13 @@ app.get('/scrape-groww', async (req, res) => {
 
         // 1. Visit Allotment Page (Active)
         console.log("visiting allotment...");
-        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'domcontentloaded', timeout: 60000 });
         const allotmentData = await scrapeTable();
         allData = [...allData, ...allotmentData];
 
         // 2. Visit Closed Page (History)
         console.log("visiting closed...");
-        await page.goto('https://groww.in/ipo/closed', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.goto('https://groww.in/ipo/closed', { waitUntil: 'domcontentloaded', timeout: 60000 });
         const closedData = await scrapeTable();
         allData = [...allData, ...closedData];
 
