@@ -141,29 +141,12 @@ app.get('/scrape-groww', async (req, res) => {
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
 
+
         // Helper to scrape current page table
         const scrapeTable = async () => {
-            // AUTO-SCROLL to load all lazy content
-            await page.evaluate(async () => {
-                await new Promise((resolve) => {
-                    let totalHeight = 0;
-                    const distance = 100;
-                    const timer = setInterval(() => {
-                        const scrollHeight = document.body.scrollHeight;
-                        window.scrollBy(0, distance);
-                        totalHeight += distance;
-
-                        // Stop scrolling if we've reached the bottom or exceeded a limit
-                        if (totalHeight >= scrollHeight || totalHeight > 15000) { // 15000px limit ~ 150 rows
-                            clearInterval(timer);
-                            resolve();
-                        }
-                    }, 100);
-                });
-            });
-
             try {
-                await page.waitForSelector('table', { timeout: 15000 }); // FAST wait
+                // Modified: No Auto-Scroll, just wait and scrape
+                await page.waitForSelector('table', { timeout: 15000 });
                 return await page.evaluate(() => {
                     const rows = Array.from(document.querySelectorAll('table tbody tr'));
                     return rows.map(tr => {
@@ -171,7 +154,6 @@ app.get('/scrape-groww', async (req, res) => {
                         if (cells.length < 2) return null;
                         const name = cells[0].innerText.trim();
                         const link = tr.querySelector('a');
-                        // Only return if we have a link (to save space)
                         return link ? { ipo_name: name, registrar_link: link.href } : null;
                     }).filter(item => item !== null);
                 });
@@ -181,31 +163,18 @@ app.get('/scrape-groww', async (req, res) => {
             }
         };
 
-        let allData = [];
-
-        // 1. Visit Allotment Page (Active)
-        console.log("visiting allotment...");
-        await page.goto('https://groww.in/ipo/allotment', { waitUntil: 'domcontentloaded', timeout: 60000 });
-        const allotmentData = await scrapeTable();
-        allData = [...allData, ...allotmentData];
-
-        // 2. Visit Closed Page (History)
+        // Simplified Strategy: Visit ONLY Closed Page (As per User Request)
         console.log("visiting closed...");
-        await page.goto('https://groww.in/ipo/closed', { waitUntil: 'domcontentloaded', timeout: 60000 });
-        const closedData = await scrapeTable();
-        allData = [...allData, ...closedData];
+        await page.goto('https://groww.in/ipo/closed', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-        // Deduplicate
-        const uniqueData = Array.from(new Map(allData.map(item => [item.ipo_name, item])).values());
-
-        res.json({ success: true, count: uniqueData.length, data: uniqueData });
-
-
+        const data = await scrapeTable();
+        // Return raw data (no need to dedup if single source)
         res.json({ success: true, count: data.length, data });
 
     } catch (error) {
         console.error("Groww Error:", error);
         res.status(500).json({ success: false, error: error.message });
+
     } finally {
         if (browser) await browser.close();
     }
