@@ -15,7 +15,7 @@ app.get('/', (req, res) => {
 });
 
 
-// Browser Launcher Helper (Optimized Args)
+// Browser Launcher Helper (Standardized Args)
 async function getBrowser() {
     return await puppeteer.launch({
         args: [
@@ -24,8 +24,7 @@ async function getBrowser() {
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
             '--disable-gpu',
-            '--single-process',
-            '--no-zygote' // Reduces memory usage significantly
+            '--single-process'
         ],
         headless: "new"
     });
@@ -39,14 +38,14 @@ app.get('/scrape-investorgain', async (req, res) => {
         browser = await getBrowser();
         const page = await browser.newPage();
 
-        // OPTIMIZATION: Block heavy resources & Ads
+        // OPTIMIZATION: Block heavy resources (Relaxed)
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             const type = req.resourceType();
             const url = req.url().toLowerCase();
 
-            // Block Resource Types
-            if (['image', 'stylesheet', 'font', 'media', 'script'].includes(type) ||
+            // Block Resource Types (ALLOWED SCRIPTS)
+            if (['image', 'stylesheet', 'font', 'media'].includes(type) ||
                 // Block Ad Domains
                 url.includes('googleads') ||
                 url.includes('doubleclick') ||
