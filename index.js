@@ -63,11 +63,13 @@ app.get('/scrape-investorgain', async (req, res) => {
 
         await page.goto('https://www.investorgain.com/report/live-ipo-gmp/331/', { waitUntil: 'domcontentloaded', timeout: 60000 }); // Reduced timeout
 
-        // Wait for table
-        await page.waitForSelector('#reportData table', { timeout: 30000 });
+        // Wait for table (Updated Selector 2025-12 due to site change)
+        // Old: #reportData table
+        // New: .table-responsive table
+        await page.waitForSelector('.table-responsive table', { timeout: 30000 });
 
         const data = await page.evaluate(() => {
-            const rows = Array.from(document.querySelectorAll('#reportData table tbody tr'));
+            const rows = Array.from(document.querySelectorAll('.table-responsive table tbody tr'));
             return rows.map(tr => {
                 const cells = tr.querySelectorAll('td');
                 if (cells.length < 11) return null; // Ensure we have enough columns
