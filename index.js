@@ -61,15 +61,12 @@ app.get('/scrape-investorgain', async (req, res) => {
         // Stealth: Set UA
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        await page.goto('https://www.investorgain.com/report/live-ipo-gmp/331/', { waitUntil: 'domcontentloaded', timeout: 60000 }); // Reduced timeout
+        // Helper to scrape Investorgain table from a given URL
+        const scrapeInvestorgainUrl = async (url) => {
+            console.log(`Navigating to ${url}...`);
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            await page.waitForSelector('.table-responsive table', { timeout: 30000 });
 
-        // Wait for table (Updated Selector 2025-12 due to site change)
-        // Old: #reportData table
-        // New: .table-responsive table
-        await page.waitForSelector('.table-responsive table', { timeout: 30000 });
-
-        // Helper to scrape Investorgain table
-        const scrapeInvestorgainTable = async () => {
             return await page.evaluate(() => {
                 const rows = Array.from(document.querySelectorAll('.table-responsive table tbody tr'));
                 return rows.map(tr => {
@@ -106,27 +103,17 @@ app.get('/scrape-investorgain', async (req, res) => {
             });
         };
 
-        // 1. Scrape "All" Tab (Default)
-        console.log("Scraping All tab...");
-        const allTabItems = await scrapeInvestorgainTable();
+        // 1. Scrape "All" View (Upcoming/Open/Closed)
+        const allTabItems = await scrapeInvestorgainUrl('https://www.investorgain.com/report/live-ipo-gmp/331/');
 
-        // 2. Click "Listed" Tab
-        console.log("Clicking Listed tab...");
-        await page.evaluate(() => {
-            const tabs = Array.from(document.querySelectorAll('a.nav-link'));
-            const listedTab = tabs.find(t => t.innerText.includes('Listed'));
-            if (listedTab) listedTab.click();
-        });
-
-        // Wait for table to change (Wait for a specific entry or just a bit)
-        await new Promise(r => setTimeout(r, 2500));
-        console.log("Scraping Listed tab...");
-        const listedTabItems = await scrapeInvestorgainTable();
+        // 2. Scrape "Listed" View (Recently Listed)
+        const listedTabItems = await scrapeInvestorgainUrl('https://www.investorgain.com/report/ipo-gmp-live/331/listed/');
 
         // 3. Merge & Deduplicate by Name
         const combined = [...allTabItems, ...listedTabItems];
         const uniqueData = Array.from(new Map(combined.map(item => [item.ipo_name, item])).values());
 
+        console.log(`Scrape Complete: Found ${uniqueData.length} unique items.`);
         res.json({ success: true, count: uniqueData.length, data: uniqueData });
     } catch (error) {
         console.error("Investorgain Error:", error);
