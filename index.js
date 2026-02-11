@@ -68,44 +68,66 @@ app.get('/scrape-investorgain', async (req, res) => {
         // New: .table-responsive table
         await page.waitForSelector('.table-responsive table', { timeout: 30000 });
 
-        const data = await page.evaluate(() => {
-            const rows = Array.from(document.querySelectorAll('.table-responsive table tbody tr'));
-            return rows.map(tr => {
-                const cells = tr.querySelectorAll('td');
-                if (cells.length < 11) return null; // Ensure we have enough columns
+        // Helper to scrape Investorgain table
+        const scrapeInvestorgainTable = async () => {
+            return await page.evaluate(() => {
+                const rows = Array.from(document.querySelectorAll('.table-responsive table tbody tr'));
+                return rows.map(tr => {
+                    const cells = tr.querySelectorAll('td');
+                    if (cells.length < 11) return null;
 
-                // 0: Name + Status + Type
-                const nameAnchor = cells[0].querySelector('a');
-                let rawName = nameAnchor ? nameAnchor.innerText.trim() : cells[0].innerText.trim();
-                const statusSpan = cells[0].querySelector('span');
-                const status = statusSpan ? statusSpan.innerText.trim() : '';
+                    const nameAnchor = cells[0].querySelector('a');
+                    let rawName = nameAnchor ? nameAnchor.innerText.trim() : cells[0].innerText.trim();
+                    const statusSpan = cells[0].querySelector('span');
+                    const status = statusSpan ? statusSpan.innerText.trim() : '';
 
-                // Detect Type
-                let type = "Mainboard";
-                if (rawName.includes('SME')) {
-                    type = "SME";
-                }
+                    let type = "Mainboard";
+                    if (rawName.includes('SME')) {
+                        type = "SME";
+                    }
 
-                return {
-                    ipo_name: rawName,
-                    listing_raw: cells[0].innerText.trim(), // Full cell text includes L@Price for listed IPOs
-                    type: type,
-                    status_code: status,
-                    gmp_raw: cells[1].innerText.trim(),
-                    rating: cells[2].innerText.trim(),
-                    subscription: cells[3].innerText.trim(),
-                    price_raw: cells[4].innerText.trim(),
-                    issue_size: cells[5].innerText.trim(),
-                    lot_size: cells[6].innerText.trim(),
-                    open_date: cells[7].innerText.trim(),
-                    close_date: cells[8].innerText.trim(),
-                    allotment_date: cells[9].innerText.trim(),
-                    listing_date: cells[10].innerText.trim(),
-                };
-            }).filter(item => item !== null);
+                    return {
+                        ipo_name: rawName,
+                        listing_raw: cells[0].innerText.trim(),
+                        type: type,
+                        status_code: status,
+                        gmp_raw: cells[1].innerText.trim(),
+                        rating: cells[2].innerText.trim(),
+                        subscription: cells[3].innerText.trim(),
+                        price_raw: cells[4].innerText.trim(),
+                        issue_size: cells[5].innerText.trim(),
+                        lot_size: cells[6].innerText.trim(),
+                        open_date: cells[7].innerText.trim(),
+                        close_date: cells[8].innerText.trim(),
+                        allotment_date: cells[9].innerText.trim(),
+                        listing_date: cells[10].innerText.trim(),
+                    };
+                }).filter(item => item !== null);
+            });
+        };
+
+        // 1. Scrape "All" Tab (Default)
+        console.log("Scraping All tab...");
+        const allTabItems = await scrapeInvestorgainTable();
+
+        // 2. Click "Listed" Tab
+        console.log("Clicking Listed tab...");
+        await page.evaluate(() => {
+            const tabs = Array.from(document.querySelectorAll('a.nav-link'));
+            const listedTab = tabs.find(t => t.innerText.includes('Listed'));
+            if (listedTab) listedTab.click();
         });
 
-        res.json({ success: true, count: data.length, data });
+        // Wait for table to change (Wait for a specific entry or just a bit)
+        await new Promise(r => setTimeout(r, 2500));
+        console.log("Scraping Listed tab...");
+        const listedTabItems = await scrapeInvestorgainTable();
+
+        // 3. Merge & Deduplicate by Name
+        const combined = [...allTabItems, ...listedTabItems];
+        const uniqueData = Array.from(new Map(combined.map(item => [item.ipo_name, item])).values());
+
+        res.json({ success: true, count: uniqueData.length, data: uniqueData });
     } catch (error) {
         console.error("Investorgain Error:", error);
         res.status(500).json({ success: false, error: error.message });
