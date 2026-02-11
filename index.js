@@ -88,6 +88,7 @@ app.get('/scrape-investorgain', async (req, res) => {
 
                 return {
                     ipo_name: rawName,
+                    listing_raw: cells[0].innerText.trim(), // Full cell text includes L@Price for listed IPOs
                     type: type,
                     status_code: status,
                     gmp_raw: cells[1].innerText.trim(),
