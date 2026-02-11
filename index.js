@@ -113,8 +113,16 @@ app.get('/scrape-investorgain', async (req, res) => {
         const combined = [...allTabItems, ...listedTabItems];
         const uniqueData = Array.from(new Map(combined.map(item => [item.ipo_name, item])).values());
 
-        console.log(`Scrape Complete: Found ${uniqueData.length} unique items.`);
-        res.json({ success: true, count: uniqueData.length, data: uniqueData });
+        console.log(`Scrape Complete: All=${allTabItems.length}, Listed=${listedTabItems.length}, Unique=${uniqueData.length}`);
+        res.json({
+            success: true,
+            count: uniqueData.length,
+            diagnostics: {
+                all_count: allTabItems.length,
+                listed_count: listedTabItems.length
+            },
+            data: uniqueData
+        });
     } catch (error) {
         console.error("Investorgain Error:", error);
         res.status(500).json({ success: false, error: error.message });
