@@ -65,8 +65,8 @@ app.get('/scrape-investorgain', async (req, res) => {
             console.log(`Navigating to ${url}...`);
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
             
-            // Wait for new table selector (#reportTable)
-            await page.waitForSelector('#reportTable', { timeout: 30000 });
+            // Wait for new table selector (#reportTable) AND ensure it has rows
+            await page.waitForSelector('#reportTable tbody tr', { timeout: 30000 });
 
             return await page.evaluate(() => {
                 const rows = Array.from(document.querySelectorAll('#reportTable tbody tr'));
