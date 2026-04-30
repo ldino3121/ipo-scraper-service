@@ -138,6 +138,35 @@ app.get('/scrape-investorgain', async (req, res) => {
     }
 });
 
+// Debug Endpoint for Investorgain All Tab
+app.get('/debug-investorgain', async (req, res) => {
+    let browser = null;
+    try {
+        browser = await getBrowser();
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.goto('https://www.investorgain.com/report/live-ipo-gmp/331/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForSelector('#reportTable tbody tr', { timeout: 30000 });
+        
+        const debugData = await page.evaluate(() => {
+            const table = document.querySelector('#reportTable');
+            const rows = document.querySelectorAll('#reportTable tbody tr');
+            return {
+                html: table ? table.outerHTML.substring(0, 5000) : 'No table',
+                rowCount: rows.length,
+                firstRowHtml: rows.length > 0 ? rows[0].outerHTML : 'No rows',
+                firstRowCellCount: rows.length > 0 ? rows[0].querySelectorAll('td').length : 0
+            };
+        });
+        
+        res.json({ success: true, debug: debugData });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    } finally {
+        if (browser) await browser.close();
+    }
+});
+
 // 2. Scrape Groww Allotment (for Registrar)
 app.get('/scrape-groww', async (req, res) => {
     console.log("Starting Groww Scrape...");
