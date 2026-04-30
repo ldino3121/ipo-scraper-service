@@ -65,8 +65,14 @@ app.get('/scrape-investorgain', async (req, res) => {
             console.log(`Navigating to ${url}...`);
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
             
-            // Wait for new table selector (#reportTable) AND ensure it has rows
-            await page.waitForSelector('#reportTable tbody tr', { timeout: 30000 });
+            // Wait for new table selector (#reportTable) AND ensure it has actual data rows (not just a loading row)
+            await page.waitForFunction(() => {
+                const rows = document.querySelectorAll('#reportTable tbody tr');
+                if (rows.length === 0) return false;
+                // Ensure at least one row has more than 10 cells (actual data)
+                const firstRowCells = rows[0].querySelectorAll('td');
+                return firstRowCells.length >= 11;
+            }, { timeout: 30000 });
 
             return await page.evaluate(() => {
                 const rows = Array.from(document.querySelectorAll('#reportTable tbody tr'));
