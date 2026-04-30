@@ -61,14 +61,15 @@ app.get('/scrape-investorgain', async (req, res) => {
         // Stealth: Set UA
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        // Helper to scrape Investorgain table from a given URL
         const scrapeInvestorgainUrl = async (url) => {
             console.log(`Navigating to ${url}...`);
             await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-            await page.waitForSelector('.table-responsive table', { timeout: 30000 });
+            
+            // Wait for new table selector (#reportTable)
+            await page.waitForSelector('#reportTable', { timeout: 30000 });
 
             return await page.evaluate(() => {
-                const rows = Array.from(document.querySelectorAll('.table-responsive table tbody tr'));
+                const rows = Array.from(document.querySelectorAll('#reportTable tbody tr'));
                 return rows.map(tr => {
                     const cells = tr.querySelectorAll('td');
                     if (cells.length < 11) return null;
